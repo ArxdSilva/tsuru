@@ -418,6 +418,14 @@ func assignRole(w http.ResponseWriter, r *http.Request, t auth.Token) (err error
 	defer func() { evt.Done(err) }()
 	email := r.FormValue("email")
 	contextValue := r.FormValue("context")
+	givenTeam := r.FormValue("team")
+	var team *auth.Team
+	if givenTeam != "" {
+		team, err = auth.GetTeam(givenTeam)
+		if err != nil {
+			return err
+		}
+	}
 	user, err := auth.GetUserByEmail(email)
 	if err != nil {
 		return err
