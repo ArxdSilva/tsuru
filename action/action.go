@@ -136,13 +136,13 @@ func (p *Pipeline) Result() Result {
 func (p *Pipeline) Execute(params ...interface{}) (err error) {
 	var (
 		r Result
+		i int
+		a *Action
 	)
 	if len(p.actions) == 0 {
 		return ErrPipelineNoActions
 	}
 	fwCtx := FWContext{Params: params}
-	var i int
-	var a *Action
 	defer func() {
 		if r := recover(); r != nil {
 			log.Errorf("[pipeline] PANIC running the Forward for the %s action - %v", a.Name, r)
@@ -172,10 +172,10 @@ func (p *Pipeline) Execute(params ...interface{}) (err error) {
 				a.OnError(fwCtx, err)
 			}
 			p.rollback(i-1, params)
-			return err
+			return
 		}
 	}
-	return nil
+	return
 }
 
 func (p *Pipeline) rollback(index int, params []interface{}) {
