@@ -2953,6 +2953,31 @@ func (s *S) TestListAll(c *check.C) {
 	c.Assert(apps, check.HasLen, 2)
 }
 
+func (s *S) TestListTeam(c *check.C) {
+	newTeam := authTypes.Team{Name: "demacia"}
+	err := auth.TeamService().Insert(newTeam)
+	c.Assert(err, check.IsNil)
+	a := App{
+		Name:      "Zoe",
+		TeamOwner: s.team.Name,
+	}
+	a2 := App{
+		Name:      "draven",
+		TeamOwner: newTeam.Name,
+	}
+	err = CreateApp(&a, s.user)
+	c.Assert(err, check.IsNil)
+	err = CreateApp(&a2, s.user)
+	c.Assert(err, check.IsNil)
+	apps, err := List(&Filter{
+		Extra:     map[string][]string{"teams": {newTeam.Name}},
+		TeamOwner: newTeam.Name,
+	})
+	c.Assert(err, check.IsNil)
+	c.Assert(len(apps), check.Equals, 1)
+	c.Assert(apps[0].Name, check.Equals, a2.Name)
+}
+
 func (s *S) TestListUsesCachedRouterAddrs(c *check.C) {
 	a := App{
 		Name:      "app1",
