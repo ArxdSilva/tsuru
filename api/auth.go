@@ -471,67 +471,67 @@ func teamList(w http.ResponseWriter, r *http.Request, t auth.Token) error {
 //   401: Unauthorized
 func teamInfo(w http.ResponseWriter, r *http.Request, t auth.Token) error {
 	teamName := r.URL.Query().Get(":name")
-	team, err := auth.GetTeam(teamName)
-	if err != nil {
-		return &errors.HTTP{Code: http.StatusNotFound, Message: err.Error()}
-	}
 	canRead := permission.Check(t, permission.PermTeamRead)
 	if !canRead {
 		return permission.ErrUnauthorized
 	}
-	apps, err := app.List(&app.Filter{
-		Extra:     map[string][]string{"teams": {team.Name}},
-		TeamOwner: team.Name})
+	evt, err := event.New(&event.Opts{
+		Target:  userTarget(t.GetUserName()),
+		Kind:    permission.PermTeamInfo,
+		Owner:   t,
+		Allowed: event.Allowed(permission.PermUserReadEvents, permission.Context(permission.CtxUser, t.GetUserName())),
+	})
+	if err != nil {
+		return err
+	}
+	defer func() { evt.Done(err) }()
+	result, err := GetTeamInfo(teamName)
 	if err != nil {
 		return &errors.HTTP{Code: http.StatusNotFound, Message: err.Error()}
-	}
-	pools, err := pool.ListPoolsForTeam(team.Name)
-	if err != nil {
-		return &errors.HTTP{Code: http.StatusNotFound, Message: err.Error()}
-	}
-	users, err := auth.ListUsers()
-	if err != nil {
-		return &errors.HTTP{Code: http.StatusNotFound, Message: err.Error()}
-	}
-	cachedRoles := make(map[string]permission.Role)
-	includedUsers := make([]*apiUser, 0)
-	for _, user := range users {
-		for _, roleInstance := range user.Roles {
-			role, ok := cachedRoles[roleInstance.Name]
-			if !ok {
-				roleFound, err := permission.FindRole(roleInstance.Name)
-				if err != nil {
-					return &errors.HTTP{Code: http.StatusNotFound, Message: err.Error()}
-				}
-				cachedRoles[roleInstance.Name] = roleFound
-				role = cachedRoles[roleInstance.Name]
-			}
-			if role.ContextType == permission.CtxGlobal || (role.ContextType == permission.CtxTeam && roleInstance.ContextValue == team.Name) {
-				canInclude := permission.Check(t, permission.PermTeam)
-				if canInclude {
-					roleMap := make(map[string]*permission.Role)
-					perms, err := t.Permissions()
-					if err != nil {
-						return &errors.HTTP{Code: http.StatusNotFound, Message: err.Error()}
-					}
-					userData, err := createAPIUser(perms, &user, roleMap, canInclude)
-					if err != nil {
-						return &errors.HTTP{Code: http.StatusInternalServerError, Message: err.Error()}
-					}
-					includedUsers = append(includedUsers, userData)
-					break
-				}
-			}
-		}
-	}
-	result := map[string]interface{}{
-		"name":  team.Name,
-		"users": includedUsers,
-		"pools": pools,
-		"apps":  apps,
 	}
 	w.Header().Set("Content-Type", "application/json")
 	return json.NewEncoder(w).Encode(result)
+}
+
+type tInfo struct {
+	Name  string
+	Users []auth.User
+	Pools []pool.Pool
+	Apps  []app.App
+}
+
+func GetTeamInfo(team string) (tInf tInfo, err error) {
+	t, err := auth.GetTeam(team)
+	if err != nil {
+		return
+	}
+	pools, err := pool.ListPoolsForTeam(t.Name)
+	if err != nil {
+		return
+	}
+	users, err := auth.ListUsers()
+	if err != nil {
+		return
+	}
+	apps, err := app.List(&app.Filter{
+		Extra:     map[string][]string{"teams": {t.Name}},
+		TeamOwner: t.Name,
+	})
+	if err != nil {
+		return
+	}
+	// cachedRoles := make(map[string]permission.Role)
+	// includedUsers := make([]*apiUser, 0)
+	for _, user := range users {
+		fmt.Print(user)
+	}
+	tInf = tInfo{
+		Name: t.Name,
+		// Users: includedUsers,
+		Pools: pools,
+		Apps:  apps,
+	}
+	return
 }
 
 // title: add key
